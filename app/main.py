@@ -3,6 +3,11 @@ from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
 from random import randrange
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
+
+
 app = FastAPI()
 
 # define how should the frontend should be sending data. This is validation. Later we will be refrencing this class to validate. 
@@ -12,9 +17,21 @@ class Post(BaseModel):
     title: str
     content: str
     published: bool = True
-    rating: Optional[int] = None
+    #rating: Optional[int] = None
 
-my_posts = [{"title": "Country", "content": "Nepal", "id":1}, {"title": "District", "content": "Chitwan", "id":2} ]
+#Connection to Database. 
+
+while True:
+    try:
+        conn = psycopg2.connect(host='127.0.0.1', database='python_api', user='python_api', password='password', cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        print("Database connection sucessfull!")
+        break
+    except Exception as error:
+        print("Conncting to Database failed!")
+        print("Error: ", error)
+        time.sleep(5)
+
 
 # @ section is decorator. get is the method being called, and / is the path. 
 @app.get("/")
@@ -23,37 +40,28 @@ async def root():
 
 @app.get("/posts")
 def get_posts():
-    return {"DATA": my_posts}
+    cursor.execute(""" SELECT * FROM posts  """)
+    posts = cursor.fetchall()
+    return {"DATA": posts}
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 # Post is refrencing to the class named Post.
 def create_posts(post: Post):
-    print(post)
-    #printing the output in dictionary format 
-    print(post.dict())
-    post_dict = post.dict()
-    post_dict['id'] = randrange(0, 10000000)
-    my_posts.append(post_dict)
-    return {"DATA": post_dict}
-
-# Getting the post of the specific id
-def find_post(id):
-    for p in my_posts:
-        if p["id"] == id:
-            return p
-        
-# Finding index of the post for deleting and updating post. 
-def find_index_post(id):
-    for i, p in enumerate(my_posts):
-        if p['id'] == id:
-            return i 
-        
+    cursor.execute(""" INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) 
+    RETURNING * """,
+                   (post.title, post.content, post.published))
+    #Getting the return value from cursor.execture
+    new_post = cursor.fetchone()
+    #Saving data in the database. 
+    conn.commit()
+    return {"DATA": new_post}
 
 # Retriving single post 
 @app.get("/posts/{id}")
 def get_post(id: int):
-    post = find_post(id)
+    cursor.execute(""" SELECT * FROM posts where id = %s """, (str(id)))
+    post = cursor.fetchone()
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id: {id} was not found.")
@@ -63,22 +71,25 @@ def get_post(id: int):
 #Deleting a post
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int):
-    index = find_index_post(id)
-    if index == None:
+    cursor.execute(""" DELETE FROM posts where id = %s  RETURNING *""", (str(id)),)
+    deleted_post = cursor.fetchone()
+    conn.commit()
+
+
+    if deleted_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id: {id} was not found.")
-    my_posts.pop(index)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 # Update a post
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    index = find_index_post(id)
-    if index == None:
+    cursor.execute(""" UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""", 
+                   (post.title, post.content, post.published, str(id)))
+    updated_post = cursor.fetchone()
+    conn.commit()
+    if updated_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,              
                             detail=f"Post with id: {id} was not found.")    
-    post_dict = post.dict()
-    post_dict['id'] = id
-    my_posts[index]=post_dict
-    return {"MSG": "Post Updated."}
-    return {"DATA": post_dict}
+    return {"UPDATED_POST": updated_post}

@@ -1,0 +1,12 @@
+version: '3'
+services:
+  db.api:
+    container_name: python_api.db
+    image: postgres:15
+    environment:
+      POSTGRES_DB: python_api
+      POSTGRES_USER: python_api
+      POSTGRES_PASSWORD: password
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    network_mode: host

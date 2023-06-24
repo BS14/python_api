@@ -29,3 +29,11 @@ uvicorn app.main:app --reload
 \redoc
 \docs
 ```
+
+
+```
+pip3 install fastapi[all]
+pip3 install psycopg2-binary
+pip3 install sqlalchemy==1.4.46 --ignore-installed
+
+```
