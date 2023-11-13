@@ -1,29 +1,39 @@
-from fastapi import FastAPI, Response, status, HTTPException
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
-from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, get_db
+
+#Migration
+
+models.Base.metadata.create_all(bind=engine)
+
+
 app = FastAPI()
 
-while True:
-    try:
-        conn = psycopg2.connect(
-            host='localhost', 
-            database='python_api', 
-            user='python_api', 
-            password='password',
-            cursor_factory=RealDictCursor)
+
+
+# while True:
+#     try:
+#         conn = psycopg2.connect(
+#             host='localhost', 
+#             database='python_api', 
+#             user='python_api', 
+#             password='password',
+#             cursor_factory=RealDictCursor)
         
-        cursor = conn.cursor()
-        print("Database Connection successful!!!")
-        break
-    except Exception as e:
-        print(f"Database connection failed. \n Error: \n {e}")
-        time.sleep(5)
+#         cursor = conn.cursor()
+#         print("Database Connection successful!!!")
+#         break
+#     except Exception as e:
+#         print(f"Database connection failed. \n Error: \n {e}")
+#         time.sleep(5)
 
 
 # This is used for validation of the body that is being send by the user. 
@@ -36,6 +46,11 @@ class Post(BaseModel):
 @app.get("/") #@DECORATOR.METHOD-ALLOWED("PATH")
 async def root():  # Path operation Function
     return {"message": "FAST API Learning."}
+
+@app.get("/sql")
+def test_posts(db: Session = Depends(get_db)):
+    return{"Status": "Sucess"}
+
 
 @app.get("/posts")
 def get_posts():
